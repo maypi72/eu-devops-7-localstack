@@ -61,7 +61,7 @@ resource "aws_sqs_queue" "la_huella_notifications_queue" {
 #################################
 # CloudWatch Logs
 #################################
-resource "aws_cloudwatch_log_group" "aplication" {
+resource "aws_cloudwatch_log_group" "la_huella_aplication" {
   # Usa el nombre que prefieras exactamente:
   name              = "/aws/la-huella/la-huella-aplication"
   retention_in_days = 7
