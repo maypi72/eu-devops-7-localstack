@@ -1,7 +1,7 @@
 #################################
 # S3 buckets
 #################################
-resource "aws_s3_bucket" "La_huella_sentiment_reports" {
+resource "aws_s3_bucket" "la_huella_sentiment_reports" {
   bucket = "la-huella-sentiment-reports"
 }
 
@@ -48,12 +48,12 @@ resource "aws_dynamodb_table" "la_huella_analytics" {
 #################################
 # SQS queues
 #################################
-resource "aws_sqs_queue" "la_huella_processing" {
+resource "aws_sqs_queue" "la_huella_processing_queue" {
   name                      = "la-huella-processing-queue"
   visibility_timeout_seconds = 30
 }
 
-resource "aws_sqs_queue" "la_huella_notifications" {
+resource "aws_sqs_queue" "la_huella_notifications_queue" {
   name                      = "la-huella-notifications-queue"
   visibility_timeout_seconds = 30
 }
@@ -61,7 +61,7 @@ resource "aws_sqs_queue" "la_huella_notifications" {
 #################################
 # CloudWatch Logs
 #################################
-resource "aws_cloudwatch_log_group" "application" {
+resource "aws_cloudwatch_log_group" "aplication" {
   # Usa el nombre que prefieras exactamente:
   name              = "/aws/la-huella/la-huella-aplication"
   retention_in_days = 7
