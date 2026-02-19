@@ -2,7 +2,7 @@ image:
   tag: "latest"
   pullPolicy: Always
 
-startServices: "s3,dynamodb,sqs,cloudwatch"
+startServices: "s3,dynamodb,sqs,cloudwatch,logs"
 
 service:
   type: ClusterIP

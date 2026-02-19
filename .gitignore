@@ -1,0 +1,31 @@
+# Directorio local de trabajo de Terraform (contiene binarios y módulos externos)
+.terraform/
+git_corrupta
+
+# Archivos de estado (pueden contener secretos en texto plano)
+*.tfstate
+*.tfstate.*
+
+# Archivos de variables (suelen contener credenciales o datos sensibles)
+*.tfvars
+*.tfvars.json
+
+# Archivos de configuración de la CLI de Terraform
+.terraformrc
+terraform.rc
+
+# Archivos de registro de errores (crash logs)
+crash.log
+crash.*.log
+
+# Archivos de anulación (overrides)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Archivos temporales de bloqueo de estado
+.terraform.tfstate.lock.info
+
+# Archivos de plan de ejecución (pueden contener datos sensibles)
+*.tfplan
