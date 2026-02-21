@@ -33,44 +33,44 @@ jobs:
  deploy:
   runs-on: [self-hosted, Linux]
 
-steps:
-  - name: Checkout
-    uses: actions/checkout@v4
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
 # ---- Herramientas CLI ----
-  - name: Install kubectl
-    uses: azure/setup-kubectl@v4
-        with:
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v4
+      with:
         version: latest
 
-  - name: Intall Helm
-    uses: azure/setup-helm@v4
+    - name: Install Helm
+      uses: azure/setup-helm@v4
 
-  - name: Setup Terraform
-    uses: hashicorp/setup-terraform@v3
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
 
-# ---- Conectividad K3s ----
-  - name: check cluster k3s
-    run: |
-      kubectl version --client
-      kubectl cluster-info
-      kubectl get nodes -o wide
+    # ---- Conectividad K3s ----
+    - name: check cluster k3s
+      run: |
+        kubectl version --client
+        kubectl cluster-info
+        kubectl get nodes -o wide
 
-# ---- Verificacion AWS CLI ----
-  - name: Check AWS CLI (LocalStack)
-    shell: bash
-    run: |
-      if ! command -v aws >/dev/null 2>&1; then
-        echo "Installing AWS CLI..."
-        curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
-        unzip -q awscliv2.zip
-        sudo ./aws/install || ./aws/install
-        aws --version
-      fi
+    # ---- Verificacion AWS CLI ----
+    - name: Check AWS CLI (LocalStack)
+      shell: bash
+      run: |
+        if ! command -v aws >/dev/null 2>&1; then
+          echo "Installing AWS CLI..."
+          curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+          unzip -q awscliv2.zip
+          sudo ./aws/install || ./aws/install
+          aws --version
+        fi
 
-# ---- Verificar e instalar ingress-nginx si NO existe ----
-  - name: Check if ingress-nginx is installed
-    id: check_ing
-    shell: bash
+    # ---- Verificar e instalar ingress-nginx si NO existe ----
+    - name: Check if ingress-nginx is installed
+      id: check_ing
+      shell: bash
       run: |
         if kubectl -n "${INGRESS_NS}" get deploy "${INGRESS_RELEASE}-controller" >/dev/null 2>&1; then
           echo "found=true" >> "$GITHUB_OUTPUT"
@@ -78,80 +78,75 @@ steps:
           echo "found=false" >> "$GITHUB_OUTPUT"
         fi
 
-  - name: Instalar ingress-nginx (Single Node + Calico)
-    if: steps.check_ing.outputs.found == 'false'
-    run: |
-      helm repo add ingress-nginx https://kubernetes.github.io
-      helm repo update
-          
-      # Ajustes para un solo nodo: hostNetwork para usar 80/443 directamente
-      # y desactivar LoadBalancer interno de K3s para evitar conflictos.
-      helm upgrade --install "${INGRESS_RELEASE}" ingress-nginx/ingress-nginx \
-        --namespace "${INGRESS_NS}" --create-namespace \
-        --set controller.kind=DaemonSet \
-        --set controller.hostNetwork=true \
-        --set controller.dnsPolicy=ClusterFirstWithHostNet \
-        --set controller.service.type=ClusterIP \
-        --set controller.publishService.enabled=false \
-        --set controller.metrics.enabled=false \
-        --set defaultBackend.enabled=true \
-        --set controller.terminationGracePeriodSeconds=0
+    - name: Instalar ingress-nginx (Single Node + Calico)
+      if: steps.check_ing.outputs.found == 'false'
+      run: | #ajustas para un solo nodo y calico
+        helm repo add ingress-nginx https://kubernetes.github.io
+        helm repo update
+        helm upgrade --install "${INGRESS_RELEASE}" ingress-nginx/ingress-nginx \
+          --namespace "${INGRESS_NS}" --create-namespace \
+          --set controller.kind=DaemonSet \
+          --set controller.hostNetwork=true \
+          --set controller.dnsPolicy=ClusterFirstWithHostNet \
+          --set controller.service.type=ClusterIP \
+          --set controller.publishService.enabled=false \
+          --set controller.metrics.enabled=false \
+          --set defaultBackend.enabled=true \
+          --set controller.terminationGracePeriodSeconds=0
             
-      # Esperar a que el DaemonSet esté listo en tu único nodo
-      kubectl -n "${INGRESS_NS}" rollout status ds/"${INGRESS_RELEASE}"-controller --timeout=180s
-  - name: Mostrar recursos ingress
-    run: |
-      kubectl -n "${INGRESS_NS}" get all
-      kubectl get ingressclasses
+        # Esperar a que el DaemonSet esté listo en tu único nodo
+        kubectl -n "${INGRESS_NS}" rollout status ds/"${INGRESS_RELEASE}"-controller --timeout=180s
+    - name: Mostrar recursos ingress
+      run: |
+        kubectl -n "${INGRESS_NS}" get all
+        kubectl get ingressclasses
       
+    # ---- Desplegar LocalStack con Helm ----
+    - name: Deploy LocalStack (Helm)
+      run: |
+        helm repo add localstack https://helm.localstack.cloud
+        helm repo update
+        helm upgrade --install localstack localstack/localstack --namespace "${K3S_NS}" --create-namespace -f localstack-values.yaml
+        kubectl -n "${K3S_NS}" rollout status deploy/localstack --timeout=180s
+        kubectl -n "${KES_NS}" get pods,svc
 
-# ---- Desplegar LocalStack con Helm ----
-  - name: Deploy LocalStack (Helm)
-    run: |
-      helm repo add localstack https://helm.localstack.cloud
-      helm repo update
-      helm upgrade --install localstack localstack/localstack --namespace "${K3S_NS}" --create-namespace -f localstack-values.yaml
-      kubectl -n "${K3S_NS}" rollout status deploy/localstack --timeout=180s
-      kubectl -n "${KES_NS}" get pods,svc
+    #---- A plicar Ingress de localstack ----
+    - name: Apply LocalStack Ingress
+      run: |
+        kubectl apply -f ingress.yaml
 
-# ---- Aplicar Ingress de localstack ----
-  - name: Apply LocalStack Ingress
-    run: |
-      kubectl apply -f ingress.yaml
+    # ---- Esperar LocalStack (salud por HTTP) ----
+    - name: Wait for LocalStack health via ingress
+      shell: bash
+      env:
+        TRY_MAX: "10"
+      run: |
+        echo "esperando ${LOCALSTACK_WAIT_SECONDS}s a que Localstack OK..." http://${LS_HOST}${HEALTH_PATH}"
+        for i in $(seq 1 $TRY_MAX); do
+          if curl -sSf "http://${LS_HOST}${HEALTH_PATH}" >/dev/null; then
+            echo "LocalStack is healthy."
+            exit 0
+          fi
+          echo "Not ready yet... ($i/$TRY_MAX)"
+          sleep 5
+        done
+        echo "ERROR: LocalStack not healthy via ingress."
+        kubectl -n "${K3S_NS}" get pods,svc,ingress
+        exit 1
+    #---- Verificar script creación bucket para tf state en local existe ----
+    - name: check script crear bucket
+      run: |
+        test -f scripts/init_tfstate.sh || { echo "Falta script de creacion bucket scripts/init_tfstate.sh"; exit 1; }
+        chmod +x scripts/init_tfstate.sh
 
-# ---- Esperar LocalStack (salud por HTTP) ----
-  - name: Wait for LocalStack health via ingress
-    shell: bash
-    env:
-      INTENTOS_MAX: "10"
-    run: |
-      echo "esperando ${LOCALSTACK_WAIT_SECONDS}s a que Localstack OK..." http://${LS_HOST}${HEALTH_PATH}"
-      for i in $(seq 1 $TRY_MAX); do
-        if curl -sSf "http://${LS_HOST}${HEALTH_PATH}" >/dev/null; then
-          echo "LocalStack is healthy."
-          exit 0
-        fi
-        echo "Not ready yet... ($i/$TRY_MAX)"
-        sleep 5
-      done
-      echo "ERROR: LocalStack not healthy via ingress."
-      kubectl -n "${K3S_NS}" get pods,svc,ingress
-      exit 1
-#---- Verificar script creación bucket para tf state en local existe ----
-  - name: check script crear bucket
-        run: |
-          test -f scripts/init_tfstate.sh || { echo "Falta script de creacion bucket scripts/init_tfstate.sh"; exit 1; }
-          chmod +x scripts/init_tfstate.sh
-
-# Exportar variables para que los scripts puedan usar AWS CLI contra Localstack
-  - name: Crear Terraform state en S3 bucket local
-    env:
-      AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
-      LOCALSTACK_ENDPOINT: ${{ env.LSHOST }}
-    run: ./scripts/init_tfstate.sh
-
+    # Exportar variables para que los scripts puedan usar AWS CLI contra Localstack
+    - name: Crear Terraform state en S3 bucket local
+      env:
+        AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
+        LOCALSTACK_ENDPOINT: ${{ env.LS_HOST }}
+      run: ./scripts/init_tfstate.sh
 
 
   
