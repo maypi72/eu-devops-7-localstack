@@ -126,7 +126,7 @@ jobs:
       env:
         TRY_MAX: "10"
       run: |
-        echo "esperando ${LOCALSTACK_WAIT_SECONDS}s a que Localstack OK..." http://${LS_HOST}${HEALTH_PATH}"
+        echo "esperando ${LOCALSTACK_WAIT_SECONDS}s a que Localstack OK... http://${LS_HOST}${HEALTH_PATH}"
         for i in $(seq 1 $TRY_MAX); do
           if curl -sSf "http://${LS_HOST}${HEALTH_PATH}" >/dev/null; then
             echo "LocalStack is healthy."
