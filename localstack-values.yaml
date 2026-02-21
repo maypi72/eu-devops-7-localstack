@@ -13,7 +13,7 @@ extraEnvVars:
   - name: DEBUG
     value: "1"
   - name: LOCALSTACK_AUTH_TOKEN
-    value: ""   # Dejar vacío para usar la versión Community
+    value: ""   #versión Community
 
 resources:
   limits:
