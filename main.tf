@@ -15,10 +15,10 @@ resource "aws_s3_bucket" "la_huella_uploads" {
 resource "aws_dynamodb_table" "la_huella_comments" {
   name         = "la-huella-comments"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "commentId"
+  hash_key     = "id"
 
   attribute {
-    name = "commentId"
+    name = "id"
     type = "S"
   }
 }
@@ -26,10 +26,10 @@ resource "aws_dynamodb_table" "la_huella_comments" {
 resource "aws_dynamodb_table" "la_huella_products" {
   name         = "la-huella-products"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "productId"
+  hash_key     = "id"
 
   attribute {
-    name = "productId"
+    name = "id"
     type = "S"
   }
 }
@@ -37,10 +37,10 @@ resource "aws_dynamodb_table" "la_huella_products" {
 resource "aws_dynamodb_table" "la_huella_analytics" {
   name         = "la-huella-analytics"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "metricId"
+  hash_key     = "id"
 
   attribute {
-    name = "metricId"
+    name = "id"
     type = "S"
   }
 }
