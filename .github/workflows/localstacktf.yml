@@ -104,8 +104,13 @@ jobs:
     # ---- Desplegar LocalStack con Helm ----
     - name: Deploy LocalStack (Helm)
       run: |
-        helm repo add localstack https://helm.localstack.cloud
-        helm repo update
+        if ! helm repo list | grep -q "localstack"; then
+          echo "LocalStack repo no encontrado, añadiendo..."
+          helm repo add localstack https://localstack.github.io/helm-charts
+        else
+          echo "el repo de LocalStack ya existe, actualizando..."
+        fi
+        helm repo update  
         helm upgrade --install localstack localstack/localstack --namespace "${K3S_NS}" --create-namespace -f localstack-values.yaml
         kubectl -n "${K3S_NS}" rollout status deploy/localstack --timeout=180s
         kubectl -n "${KES_NS}" get pods,svc
